@@ -1,0 +1,19 @@
+{
+  "name": "lex-marketplace",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev:web": "pnpm --filter @lex/web dev",
+    "dev:api": "pnpm --filter @lex/api dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "seed": "pnpm --filter @lex/seed start"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "seed"
+  ]
+}
