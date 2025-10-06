@@ -1,0 +1,15 @@
+
+node_modules/
+pnpm-lock.yaml
+# builds / caches
+.pnpm-store/
+.next/
+dist/
+coverage/
+# env files
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
