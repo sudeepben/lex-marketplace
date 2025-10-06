@@ -1,0 +1,5 @@
+[
+  { "title": "Bluetooth Headphones", "photos": [], "price": 4999, "inventory": 12, "condition": "good", "category": "electronics", "shipOptions": ["ground"], "pickup": true, "visibility": "public" },
+  { "title": "Office Chair", "photos": [], "price": 8999, "inventory": 3,  "condition": "like-new", "category": "furniture",   "shipOptions": ["pickup"], "pickup": true, "visibility": "public" },
+  { "title": "Soccer Ball", "photos": [], "price": 1999, "inventory": 25, "condition": "new", "category": "sports",      "shipOptions": ["ground"], "pickup": false, "visibility": "public" }
+]
