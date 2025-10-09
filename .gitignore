@@ -15,6 +15,16 @@ coverage/
 *.log
 
 
+# env & secrets
+.env*
+apps/*/.env*
+serviceAccount.json
+apps/api/serviceAccount.json
+
+# Next/TS build stuff
+.next
+dist
+node_modules
 
 
 
