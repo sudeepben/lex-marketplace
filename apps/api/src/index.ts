@@ -212,6 +212,9 @@ app.get("/products", async (req, res) => {
     // In-memory filtering
     let items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
+    // NEW: homepage/public listing should only show public items
+    items = items.filter((it: any) => (it.visibility ?? "public") === "public");
+
     if (q) {
       items = items.filter((it: any) =>
         String(it.title ?? "").toLowerCase().includes(q) ||
