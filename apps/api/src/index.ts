@@ -115,6 +115,14 @@ const ProductUpdate = z
     message: "At least one field required.",
   });
 
+  // --- Zod schema for Reviews
+  const ReviewInput = z.object({
+    productId: z.string().min(1),
+    rating: z.number().int().min(1).max(5),
+    text: z.string().max(500).optional().default(""),
+  });
+
+
 // --- Handy refs & ownership guard
 function productDocRef(orgId: string, appId: string, id: string) {
   return db
@@ -181,6 +189,43 @@ app.post("/products", verifyFirebaseToken, async (req, res) => {
   }
 });
 
+// --- Create review (auth required)
+app.post("/reviews", verifyFirebaseToken, async (req, res) => {
+  try {
+    const parsed = ReviewInput.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Validation failed", issues: parsed.error.issues });
+    }
+
+    const { productId, rating, text } = parsed.data;
+    const uid = (req as any).user?.uid as string;
+    const orgId = process.env.ORG_ID || "default";
+    const appId = process.env.APP_ID || "web";
+
+    // path: /orgs/{orgId}/apps/{appId}/reviews/{autoId}
+    const colRef = db
+      .collection("orgs").doc(orgId)
+      .collection("apps").doc(appId)
+      .collection("reviews");
+
+    const payload = {
+      productId,
+      rating,
+      text,
+      authorId: uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const docRef = await colRef.add(payload);
+    return res.status(201).json({ id: docRef.id });
+  } catch (err: any) {
+    console.error("POST /reviews error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
+  }
+});
+
+
 // --- List products (homepage) with filters + pagination
 app.get("/products", async (req, res) => {
   try {
@@ -244,6 +289,47 @@ app.get("/products", async (req, res) => {
     return res
       .status(500)
       .json({ error: "Internal error", details: err?.message });
+  }
+});
+
+// --- List reviews for a product + summary
+app.get("/reviews", async (req, res) => {
+  try {
+    const orgId = process.env.ORG_ID || "default";
+    const appId = process.env.APP_ID || "web";
+    const productId = String(req.query.productId || "");
+
+    if (!productId) return res.status(400).json({ error: "Missing productId" });
+
+    const page = Math.max(parseInt(String(req.query.page || "1")), 1);
+    const pageSize = Math.min(Math.max(parseInt(String(req.query.pageSize || "20")), 1), 50);
+
+    const colRef = db
+      .collection("orgs").doc(orgId)
+      .collection("apps").doc(appId)
+      .collection("reviews");
+
+    // Order newest first
+    const snap = await colRef
+      .where("productId", "==", productId)
+      .orderBy("createdAt", "desc")
+      .limit(pageSize)
+      .get();
+
+    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Compute summary (avg, count)
+    let count = 0, sum = 0;
+    items.forEach((r: any) => {
+      const n = Number(r.rating || 0);
+      if (!Number.isNaN(n)) { sum += n; count += 1; }
+    });
+    const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+
+    return res.json({ items, summary: { avg, count }, page, pageSize });
+  } catch (err: any) {
+    console.error("GET /reviews error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
   }
 });
 

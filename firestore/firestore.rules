@@ -57,5 +57,29 @@ service cloud.firestore {
     }
 
     // (We’ll add rules for add-ons like Reviews/Bookmarks later.)
+    // Reviews live under: /orgs/{orgId}/apps/{appId}/reviews/{reviewId}
+    match /orgs/{orgId}/apps/{appId}/reviews/{reviewId} {
+      function isSignedIn() { return request.auth != null; }
+      function isAuthor() { return isSignedIn() && resource.data.authorId == request.auth.uid; }
+      function isCreatingOwn() { return isSignedIn() && request.resource.data.authorId == request.auth.uid; }
+
+      function validReview(data) {
+        return
+          data.productId is string &&
+          data.productId.size() >= 1 &&
+          data.rating is int && data.rating >= 1 && data.rating <= 5 &&
+          ( !(data.text is string) || data.text.size() <= 500 ) &&
+          data.authorId is string;
+      }
+
+      // Public can read reviews
+      allow read: if true;
+
+      // Authors can create/update/delete their own reviews
+      allow create: if isCreatingOwn() && validReview(request.resource.data);
+      allow update: if isAuthor() && validReview(request.resource.data);
+      allow delete: if isAuthor();
+    }
+
   }
 }
