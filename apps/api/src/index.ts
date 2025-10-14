@@ -505,38 +505,57 @@ app.get("/products/:id", async (req, res) => {
   }
 });
 
-// --- Update product (auth + owner only)
+// --- Update product (auth + owner)
 app.put("/products/:id", verifyFirebaseToken, async (req, res) => {
   try {
-    const uid = (req as any).user?.uid as string;
     const id = req.params.id;
+    const uid = (req as any).user?.uid as string;
+
     const orgId = process.env.ORG_ID || "default";
     const appId = process.env.APP_ID || "web";
 
-    const parsed = ProductUpdate.safeParse(req.body);
+    const docRef = db
+      .collection("orgs").doc(orgId)
+      .collection("apps").doc(appId)
+      .collection("products").doc(id);
+
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Not found" });
+
+    const current = doc.data() || {};
+    if (current.ownerId !== uid) return res.status(403).json({ error: "Forbidden" });
+
+    // Validate incoming fields (reuse your schema but make everything optional)
+    const PartialProductInput = z.object({
+      title: z.string().min(2).optional(),
+      price: z.number().min(0).optional(),
+      inventory: z.number().int().min(0).optional(),
+      condition: z.enum(["new","used","refurbished"]).optional(),
+      category: z.string().min(2).optional(),
+      visibility: z.enum(["public","private"]).optional(),
+      pickup: z.boolean().optional(),
+      shipOptions: z.array(z.string()).optional(),
+      photos: z.array(z.string()).optional(),
+    });
+
+    const parsed = PartialProductInput.safeParse(req.body);
     if (!parsed.success) {
-      return res
-        .status(400)
-        .json({ error: "Validation failed", issues: parsed.error.issues });
+      return res.status(400).json({ error: "Validation failed", issues: parsed.error.issues });
     }
 
-    const ref = productDocRef(orgId, appId, id);
-    await assertOwnerOrThrow(ref, uid);
-
-    const update: any = {
+    const updates = {
       ...parsed.data,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    await ref.update(update);
+    await docRef.update(updates);
     return res.json({ ok: true });
   } catch (err: any) {
-    const status = err?.status ?? 500;
-    const msg = err?.message ?? "Internal error";
-    if (status >= 500) console.error("PUT /products/:id error", err);
-    return res.status(status).json({ error: msg });
+    console.error("PUT /products/:id error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
   }
 });
+
 
 // --- Delete product (auth + owner only)
 app.delete("/products/:id", verifyFirebaseToken, async (req, res) => {
