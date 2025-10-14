@@ -362,65 +362,67 @@ app.get("/products", async (req, res) => {
     const orgId = process.env.ORG_ID || "default";
     const appId = process.env.APP_ID || "web";
 
-    // Parse filters
-    const q = (req.query.q as string | undefined)?.toLowerCase().trim();
-    const category = (req.query.category as string | undefined)?.trim();
-    const condition = (req.query.condition as string | undefined)?.trim(); // "new" | "used" | "refurbished"
+    // pagination
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 12));
+    const offset = (page - 1) * pageSize;
+
+    // filters (existing)
+    const category = (req.query.category as string) || undefined;
+    const condition = (req.query.condition as "new" | "used" | "refurbished") || undefined;
     const minPrice = req.query.minPrice ? Number(req.query.minPrice) : undefined;
     const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : undefined;
+    const visibility = (req.query.visibility as "public" | "private") || undefined;
 
-    // Pagination (1-based)
-    const page = Math.max(1, Number(req.query.page ?? 1));
-    const pageSizeRaw = Number(req.query.pageSize ?? 12);
-    const pageSize = Math.max(1, Math.min(50, isNaN(pageSizeRaw) ? 12 : pageSizeRaw));
+    // NEW: owner filter
+    let ownerId = (req.query.ownerId as string) || undefined;
 
-    // Pull a reasonable chunk, newest first (tune this if you have lots of data)
-    const fetchCap = 200; // we’ll filter in-memory
-    const snap = await db
+    // Support ownerId=me (requires auth)
+    if (ownerId === "me") {
+      try {
+        const authHeader = req.header("authorization") || req.header("Authorization");
+        if (!authHeader?.startsWith("Bearer ")) {
+          return res.status(401).json({ error: "Missing Bearer token" });
+        }
+        const token = authHeader.slice("Bearer ".length).trim();
+        const decoded = await admin.auth().verifyIdToken(token);
+        ownerId = decoded.uid;
+      } catch (e: any) {
+        return res.status(401).json({ error: "Unauthorized", details: e?.message });
+      }
+    }
+
+    // base collection
+    let q: FirebaseFirestore.Query = db
       .collection("orgs").doc(orgId)
       .collection("apps").doc(appId)
-      .collection("products")
-      .orderBy("createdAt", "desc")
-      .limit(fetchCap)
-      .get();
+      .collection("products");
 
-    // In-memory filtering
-    let items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // apply filters
+    if (category) q = q.where("category", "==", category);
+    if (condition) q = q.where("condition", "==", condition);
+    if (visibility) q = q.where("visibility", "==", visibility);
+    if (ownerId) q = q.where("ownerId", "==", ownerId);
+    if (minPrice !== undefined) q = q.where("price", ">=", minPrice);
+    if (maxPrice !== undefined) q = q.where("price", "<=", maxPrice);
 
-    // NEW: homepage/public listing should only show public items
-    items = items.filter((it: any) => (it.visibility ?? "public") === "public");
+    // order & paginate (offset is fine for small lists)
+    q = q.orderBy("createdAt", "desc");
 
-    if (q) {
-      items = items.filter((it: any) =>
-        String(it.title ?? "").toLowerCase().includes(q) ||
-        String(it.category ?? "").toLowerCase().includes(q)
-      );
-    }
-    if (category) {
-      items = items.filter((it: any) => String(it.category ?? "") === category);
-    }
-    if (condition) {
-      items = items.filter((it: any) => String(it.condition ?? "") === condition);
-    }
-    if (typeof minPrice === "number" && !isNaN(minPrice)) {
-      items = items.filter((it: any) => Number(it.price ?? 0) >= minPrice);
-    }
-    if (typeof maxPrice === "number" && !isNaN(maxPrice)) {
-      items = items.filter((it: any) => Number(it.price ?? 0) <= maxPrice);
-    }
+    const snapAll = await q.get(); // to compute total
+    const total = snapAll.size;
 
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize;
-    const paged = items.slice(start, end);
+    // paginate
+    const docs = snapAll.docs.slice(offset, offset + pageSize);
+    const items = docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    return res.json({ items: paged, page, pageSize, total });
+    return res.json({ items, page, pageSize, total });
   } catch (err: any) {
-    return res
-      .status(500)
-      .json({ error: "Internal error", details: err?.message });
+    console.error("GET /products error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
   }
 });
+
 
 // --- List reviews for a product + summary
 app.get("/reviews", async (req, res) => {

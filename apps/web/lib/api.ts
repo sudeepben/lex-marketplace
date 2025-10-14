@@ -61,7 +61,7 @@ export function apiDelete<T>(path: string, init: RequestInit = {}) {
 
 // -------- Auth helpers (send Firebase ID token) --------
 export function apiGetAuth<T>(path: string, init: RequestInit = {}) {
-  return apiFetch<T>(path, init, true);
+  return apiFetch<T>(path, { method: "GET", ...init }, true);
 }
 export function apiPostAuth<T>(path: string, body?: JsonBody, init: RequestInit = {}) {
   return apiFetch<T>(
