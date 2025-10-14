@@ -122,6 +122,12 @@ const ProductUpdate = z
     text: z.string().max(500).optional().default(""),
   });
 
+  // --- Zod schema for Bookmarks
+  const BookmarkInput = z.object({
+    productId: z.string().min(1),
+  });
+
+
 
 // --- Handy refs & ownership guard
 function productDocRef(orgId: string, appId: string, id: string) {
@@ -224,6 +230,130 @@ app.post("/reviews", verifyFirebaseToken, async (req, res) => {
     return res.status(500).json({ error: "Internal error", details: err?.message });
   }
 });
+
+// --- Create bookmark (auth)
+app.post("/bookmarks", verifyFirebaseToken, async (req, res) => {
+  try {
+    const parsed = BookmarkInput.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Validation failed", issues: parsed.error.issues });
+    }
+    const { productId } = parsed.data;
+
+    const uid = (req as any).user?.uid as string;
+    const orgId = process.env.ORG_ID || "default";
+    const appId = process.env.APP_ID || "web";
+
+    const colRef = db
+      .collection("orgs").doc(orgId)
+      .collection("apps").doc(appId)
+      .collection("bookmarks");
+
+    // prevent dup for same (userId, productId)
+    const dup = await colRef.where("userId","==",uid).where("productId","==",productId).limit(1).get();
+    if (!dup.empty) return res.status(200).json({ id: dup.docs[0].id });
+
+    const payload = {
+      userId: uid,
+      productId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const docRef = await colRef.add(payload);
+    return res.status(201).json({ id: docRef.id });
+  } catch (err: any) {
+    console.error("POST /bookmarks error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
+  }
+});
+
+// --- Bookmark status for a given product (auth)
+app.get("/bookmarks/status", verifyFirebaseToken, async (req, res) => {
+  try {
+    const productId = String(req.query.productId || "");
+    if (!productId) return res.status(400).json({ error: "Missing productId" });
+
+    const uid = (req as any).user?.uid as string;
+    const orgId = process.env.ORG_ID || "default";
+    const appId = process.env.APP_ID || "web";
+
+    const colRef = db
+      .collection("orgs").doc(orgId)
+      .collection("apps").doc(appId)
+      .collection("bookmarks");
+
+    const snap = await colRef.where("userId","==",uid).where("productId","==",productId).limit(1).get();
+    if (snap.empty) return res.json({ bookmarked: false });
+
+    return res.json({ bookmarked: true, id: snap.docs[0].id });
+  } catch (err: any) {
+    console.error("GET /bookmarks/status error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
+  }
+});
+
+// --- Delete bookmark by id (auth)
+app.delete("/bookmarks/:id", verifyFirebaseToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const uid = (req as any).user?.uid as string;
+    const orgId = process.env.ORG_ID || "default";
+    const appId = process.env.APP_ID || "web";
+
+    const docRef = db
+      .collection("orgs").doc(orgId)
+      .collection("apps").doc(appId)
+      .collection("bookmarks").doc(id);
+
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Not found" });
+    if (doc.data()?.userId !== uid) return res.status(403).json({ error: "Forbidden" });
+
+    await docRef.delete();
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("DELETE /bookmarks/:id error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
+  }
+});
+
+// --- (Optional) list current user's bookmarks with joined product fields
+app.get("/bookmarks", verifyFirebaseToken, async (req, res) => {
+  try {
+    const uid = (req as any).user?.uid as string;
+    const orgId = process.env.ORG_ID || "default";
+    const appId = process.env.APP_ID || "web";
+
+    const colRef = db
+      .collection("orgs").doc(orgId)
+      .collection("apps").doc(appId)
+      .collection("bookmarks");
+
+    const snap = await colRef.where("userId","==",uid).orderBy("createdAt","desc").limit(50).get();
+    const bookmarks = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+
+    // Join product docs
+    const prodCol = db
+      .collection("orgs").doc(orgId)
+      .collection("apps").doc(appId)
+      .collection("products");
+
+    const proms = bookmarks.map(b => prodCol.doc(b.productId).get());
+    const prodDocs = await Promise.all(proms);
+
+    const items = bookmarks.map((b, i) => {
+      const pd = prodDocs[i];
+      const product = pd.exists ? { id: pd.id, ...pd.data() } : null;
+      return { ...b, product };
+    });
+
+    return res.json({ items });
+  } catch (err: any) {
+    console.error("GET /bookmarks error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
+  }
+});
+
 
 
 // --- List products (homepage) with filters + pagination

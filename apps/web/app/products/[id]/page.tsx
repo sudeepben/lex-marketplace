@@ -2,6 +2,8 @@
 import CreatedToast from "../../../components/CreatedToast";
 import OwnerActions from "../../../components/OwnerActions"; // <-- add this
 import Reviews from "../../../components/Reviews";
+import BookmarkButton from "../../../components/BookmarkButton";
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -93,6 +95,8 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               Buy now
             </button>
           </div>
+
+          <BookmarkButton productId={product.id} />
 
           {/* Owner-only actions (Edit/Delete) */}
           <OwnerActions productId={product.id} ownerId={product.ownerId} />

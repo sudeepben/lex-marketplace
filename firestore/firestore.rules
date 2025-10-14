@@ -81,5 +81,26 @@ service cloud.firestore {
       allow delete: if isAuthor();
     }
 
+    // Bookmarks: /orgs/{orgId}/apps/{appId}/bookmarks/{bookmarkId}
+    match /orgs/{orgId}/apps/{appId}/bookmarks/{bookmarkId} {
+      function isSignedIn() { return request.auth != null; }
+      function isOwner() { return isSignedIn() && resource.data.userId == request.auth.uid; }
+      function isCreatingOwn() { return isSignedIn() && request.resource.data.userId == request.auth.uid; }
+
+      function validBookmark(data) {
+        return data.userId is string &&
+              data.productId is string &&
+              data.productId.size() >= 1;
+      }
+
+      // Only the owner can read their bookmarks
+      allow read: if isOwner();
+
+      // Owner can create/update/delete their own bookmark
+      allow create: if isCreatingOwn() && validBookmark(request.resource.data);
+      allow update: if isOwner() && validBookmark(request.resource.data);
+      allow delete: if isOwner();
+    }
+
   }
 }
