@@ -19,6 +19,28 @@ export default function Header() {
             >
               Sell
             </Link>
+
+            <Link 
+              href="/my/listings" 
+              className="rounded-lg border px-3 py-1 text-sm hover:bg-gray-50"
+            >
+              My listings
+            </Link>
+
+            <Link 
+              href="/my/bookmarks" 
+              className="rounded-lg border px-3 py-1 hover:bg-gray-50"
+            >
+              My bookmarks
+            </Link>
+
+            <Link 
+              href="/offers" 
+              className="rounded-lg border px-3 py-1 hover:bg-gray-50"
+            >
+              Offers
+            </Link>
+
             
             {/* 2. Existing User Email */}
             <span className="opacity-80">{user.email}</span>

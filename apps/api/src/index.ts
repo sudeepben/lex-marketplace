@@ -127,6 +127,134 @@ const ProductUpdate = z
     productId: z.string().min(1),
   });
 
+// ---------- Offers ----------
+
+// Validation
+const OfferCreateInput = z.object({
+  productId: z.string().min(1),
+  amount: z.number().min(0),
+  message: z.string().max(1000).optional(),
+});
+
+// Create an offer (buyer only)
+app.post("/offers", verifyFirebaseToken, async (req, res) => {
+  try {
+    const parsed = OfferCreateInput.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Validation failed", issues: parsed.error.issues });
+    }
+    const { productId, amount, message } = parsed.data;
+    const buyerId = (req as any).user.uid as string;
+
+    const orgId = process.env.ORG_ID || "default";
+    const appId = process.env.APP_ID || "web";
+
+    // Load product to find sellerId / ensure existence
+    const productRef = db
+      .collection("orgs").doc(orgId)
+      .collection("apps").doc(appId)
+      .collection("products").doc(productId);
+
+    const productDoc = await productRef.get();
+    if (!productDoc.exists) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    const product = productDoc.data() as any;
+    const sellerId = product.ownerId as string;
+    if (!sellerId) {
+      return res.status(400).json({ error: "Product missing ownerId" });
+    }
+    if (sellerId === buyerId) {
+      return res.status(400).json({ error: "You cannot offer on your own product" });
+    }
+
+    // write offer
+    const offer = {
+      productId,
+      buyerId,
+      sellerId,
+      amount,
+      message: message ?? "",
+      status: "pending", // pending | accepted | declined
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const docRef = await db.collection("offers").add(offer);
+    return res.status(201).json({ id: docRef.id });
+  } catch (err: any) {
+    console.error("POST /offers error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
+  }
+});
+
+// List offers for current user
+// GET /offers?role=buyer|seller[&productId=...][&page=1&pageSize=12]
+app.get("/offers", verifyFirebaseToken, async (req, res) => {
+  try {
+    const uid = (req as any).user.uid as string;
+
+    const role = (req.query.role as "buyer" | "seller") || "buyer";
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 12));
+    const offset = (page - 1) * pageSize;
+    const productId = (req.query.productId as string) || undefined;
+
+    let q: FirebaseFirestore.Query = db.collection("offers");
+    q = q.where(role === "buyer" ? "buyerId" : "sellerId", "==", uid);
+    if (productId) q = q.where("productId", "==", productId);
+    q = q.orderBy("createdAt", "desc");
+
+    const snapAll = await q.get();
+    const total = snapAll.size;
+    const docs = snapAll.docs.slice(offset, offset + pageSize);
+    const items = docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    return res.json({ items, page, pageSize, total });
+  } catch (err: any) {
+    console.error("GET /offers error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
+  }
+});
+
+// Update offer status (seller only)
+const OfferUpdateInput = z.object({
+  status: z.enum(["accepted", "declined"]),
+});
+
+app.patch("/offers/:id", verifyFirebaseToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const parsed = OfferUpdateInput.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Validation failed", issues: parsed.error.issues });
+    }
+    const { status } = parsed.data;
+    const uid = (req as any).user.uid as string;
+
+    const offerRef = db.collection("offers").doc(id);
+    const doc = await offerRef.get();
+    if (!doc.exists) return res.status(404).json({ error: "Offer not found" });
+
+    const offer = doc.data() as any;
+    if (offer.sellerId !== uid) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (offer.status !== "pending") {
+      return res.status(400).json({ error: "Offer already processed" });
+    }
+
+    await offerRef.update({
+      status,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("PATCH /offers/:id error", err);
+    return res.status(500).json({ error: "Internal error", details: err?.message });
+  }
+});
 
 
 // --- Handy refs & ownership guard

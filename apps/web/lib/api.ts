@@ -82,3 +82,14 @@ export function apiPutAuth<T>(path: string, body?: Record<string, any>, init: Re
     true
   );
 }
+
+export function apiPatchAuth<T>(path: string, body: any, init: RequestInit = {}) {
+  return apiFetch<T>(path, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json", ...(init.headers || {}) },
+    ...init,
+  }, true);
+}
+
+
