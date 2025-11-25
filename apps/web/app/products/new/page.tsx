@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { apiPost } from "../../../lib/api"; // <-- relative import, no alias needed
+import { apiPost } from "../../../lib/api";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 // Minimal product schema for the form
 const ProductSchema = z.object({
@@ -24,10 +26,11 @@ type ProductInput = z.infer<typeof ProductSchema>;
 export default function CreateProductPage() {
   const router = useRouter();
 
-  // read auth state from Firebase directly (works with your existing provider initialization)
+  // auth state (from Firebase client SDK)
   const [signedIn, setSignedIn] = useState<boolean>(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -57,19 +60,48 @@ export default function CreateProductPage() {
     return check.success && !!userId;
   }, [form, userId]);
 
-  // ⬇️ CHANGE #1: keep returning { id } from the API and type it
+  // Upload via API (multipart/form-data). Returns array of URLs.
+  async function uploadAllSelectedFiles(): Promise<string[]> {
+    if (files.length === 0) return [];
+    const fd = new FormData();
+    files.forEach((f) => fd.append("files", f));
+
+    // include auth token
+    const { getAuth } = await import("firebase/auth");
+    const token = await getAuth().currentUser?.getIdToken();
+
+    const res = await fetch(`${API_URL}/upload`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } as any : undefined,
+      body: fd,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Upload failed: ${res.status} ${res.statusText} ${text}`);
+    }
+    const data = (await res.json()) as { urls: string[] };
+    return data.urls || [];
+  }
+
   const createMutation = useMutation({
     mutationFn: async () => {
+      if (!userId) throw new Error("Not signed in");
+
+      // 1) upload images via API
+      const photoUrls = await uploadAllSelectedFiles();
+
+      // 2) assemble payload
       const payload = {
         ...form,
-        ownerId: userId,   // server will ignore and use token uid; harmless
-        photos: [],        // placeholder for now
+        photos: photoUrls,
+        ownerId: userId,   // server will set owner from token; harmless
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
+
+      // 3) POST to API
       return apiPost<{ id: string }>("/products", payload);
     },
-    // ⬇️ CHANGE #2: redirect to the new product's detail page
     onSuccess: (data) => {
       router.push(`/products/${data.id}?created=1`);
     },
@@ -97,7 +129,7 @@ export default function CreateProductPage() {
           e.preventDefault();
           const parsed = ProductSchema.safeParse(form);
           if (!parsed.success) {
-            alert(parsed.error.issues.map(i => i.message).join("\n"));
+            alert(parsed.error.issues.map((i) => i.message).join("\n"));
             return;
           }
           createMutation.mutate();
@@ -147,7 +179,9 @@ export default function CreateProductPage() {
             <select
               className="w-full rounded-lg border px-3 py-2"
               value={form.condition}
-              onChange={(e) => setForm({ ...form, condition: e.target.value as "new" | "used" | "refurbished" })}
+              onChange={(e) =>
+                setForm({ ...form, condition: e.target.value as "new" | "used" | "refurbished" })
+              }
             >
               <option value="new">New</option>
               <option value="used">Used</option>
@@ -189,6 +223,36 @@ export default function CreateProductPage() {
             />
             <label htmlFor="pickup" className="text-sm">Local pickup available</label>
           </div>
+        </div>
+
+        {/* Photos */}
+        <div>
+          <label className="block text-sm mb-1">Photos (up to 5)</label>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => {
+              const list = Array.from(e.target.files ?? []);
+              setFiles(list.slice(0, 5));
+            }}
+          />
+          {files.length > 0 && (
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              {files.map((f, i) => {
+                const url = URL.createObjectURL(f);
+                return (
+                  <div key={i} className="aspect-square rounded-lg border overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={f.name} className="h-full w-full object-cover" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {files.length > 0 && (
+            <p className="mt-2 text-xs text-gray-500">Images will upload when you submit.</p>
+          )}
         </div>
 
         <div className="pt-2">

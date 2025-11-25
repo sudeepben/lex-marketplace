@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiDelete, apiGet, apiPost } from "../lib/api"; // adjust path if needed
+import { apiDeleteAuth, apiGetAuth, apiPostAuth } from "../lib/api";
 
 export default function BookmarkButton({ productId }: { productId: string }) {
   const [signedIn, setSignedIn] = useState(false);
@@ -16,10 +16,10 @@ export default function BookmarkButton({ productId }: { productId: string }) {
         setSignedIn(!!u);
         if (u) {
           try {
-            const res = await apiGet<{ bookmarked: boolean; id?: string }>(
-              `/bookmarks/status?productId=${encodeURIComponent(productId)}`
+            const status = await apiGetAuth<{ bookmarked: boolean; id?: string }>(
+                `/bookmarks/status?productId=${encodeURIComponent(productId)}`
             );
-            setBookmarkId(res.bookmarked ? res.id ?? null : null);
+            setBookmarkId(status.bookmarked ? status.id ?? null : null);
           } catch {}
         } else {
           setBookmarkId(null);
@@ -37,11 +37,11 @@ export default function BookmarkButton({ productId }: { productId: string }) {
     setLoading(true);
     try {
       if (bookmarkId) {
-        await apiDelete(`/bookmarks/${bookmarkId}`);
+        await apiDeleteAuth(`/bookmarks/${bookmarkId}`);
         setBookmarkId(null);
       } else {
-        const res = await apiPost<{ id: string }>("/bookmarks", { productId });
-        setBookmarkId(res.id);
+        const created = await apiPostAuth<{ id: string }>(`/bookmarks`, { productId });
+        setBookmarkId(created.id);
       }
     } catch (e: any) {
       alert(e?.message || "Failed");

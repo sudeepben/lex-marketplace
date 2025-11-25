@@ -26,7 +26,8 @@ apps/api/serviceAccount.json
 dist
 node_modules
 
-
+# Ignore temporary file uploads
+apps/api/uploads/
 
 
 

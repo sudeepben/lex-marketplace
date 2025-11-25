@@ -1,46 +1,66 @@
 {
   "indexes": [
-    {
-      "collectionGroup": "products",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "ownerId",  "order": "ASCENDING" },
-        { "fieldPath": "createdAt","order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "products",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "visibility", "order": "ASCENDING" },
-        { "fieldPath": "category",   "order": "ASCENDING" },
-        { "fieldPath": "price",      "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "products",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "visibility", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt",  "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "reviews",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "productId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "bookmarks",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    }
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "ownerId", "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "visibility", "order": "ASCENDING" },
+                  { "fieldPath": "category",   "order": "ASCENDING" },
+                  { "fieldPath": "price",      "order": "ASCENDING" } ] },
+
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "visibility", "order": "ASCENDING" },
+                  { "fieldPath": "updatedAt",  "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "reviews", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "productId", "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "bookmarks", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "userId",    "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "offers", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "buyerId",   "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "offers", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "sellerId",  "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    // ---- NEW: cover common product filter/order combos ----
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "condition", "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "category",  "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "price",     "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "condition", "order": "ASCENDING" },
+                  { "fieldPath": "price",     "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "category",  "order": "ASCENDING" },
+                  { "fieldPath": "price",     "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "ownerId",   "order": "ASCENDING" },
+                  { "fieldPath": "price",     "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+
+    { "collectionGroup": "products", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "visibility","order": "ASCENDING" },
+                  { "fieldPath": "price",     "order": "ASCENDING" },
+                  { "fieldPath": "createdAt", "order": "DESCENDING" } ] }
   ],
   "fieldOverrides": []
 }
